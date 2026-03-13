@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StorePembiayaanRequest;
+use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use App\Models\PembiayaanRequest;
 use App\Models\UmkmProfile;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 
 class PembiayaanController extends Controller
@@ -31,8 +34,9 @@ class PembiayaanController extends Controller
     //Mengubah status approval (setujui /Tolak)
     public function updateStatus(Request $request, $id)
     {
-        if ($request->user()->role !== 'approver') {
-            return response()->json(['success' => false, 'message' => 'Akses ditolak.'], 403);
+       
+        if (!Gate::allows('manage-approval')) {
+            return response()->json(['success' => false, 'message' => 'Akses ditolak. Anda bukan approver.'], 403);
         }
 
         $request->validate([
@@ -40,43 +44,49 @@ class PembiayaanController extends Controller
         ]);
 
         $pembiayaan = PembiayaanRequest::findOrFail($id);
-        $pembiayaan->status_approval = $request->status_approval;
+        
+      
+        $oldStatus = $pembiayaan->status_approval;
+        $newStatus = $request->status_approval;
+
+      
+        $pembiayaan->status_approval = $newStatus;
         $pembiayaan->save();
+
+        
+        AuditLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'Change Approval Status',
+            'model_type' => 'PembiayaanRequest',
+            'model_id' => $pembiayaan->id,
+            'old_values' => ['status_approval' => $oldStatus],
+            'new_values' => ['status_approval' => $newStatus],
+            'ip_address' => $request->ip()
+        ]);
 
         return response()->json([
             'success' => true,
-            'message' => 'Status pengajuan berhasil diperbarui menjadi: ' . $request->status_approval,
+            'message' => 'Status pengajuan diperbarui menjadi: ' . $newStatus,
             'data' => $pembiayaan
         ]);
     }
 
-    public function store(Request $request)
+    public function store(StorePembiayaanRequest $request) 
     {
-        $request->validate([
-            'umkm_profile_id' => 'required|exists:umkm_profiles,id',
-            'nominal_pengajuan' => 'required|numeric|min:1000000',
-            'tenor_bulan' => 'required|integer|min:1',
-            'bunga_persen' => 'required|numeric|min:0'
-        ]);
-
         $umkm = UmkmProfile::findOrFail($request->umkm_profile_id);
-
-      //flidsi uomset nya 3
         $maksimalPinjaman = $umkm->omzet_bulanan * 3;
+
         if ($request->nominal_pengajuan > $maksimalPinjaman) {
             return response()->json([
                 'success' => false,
-                'message' => 'Nominal pengajuan melebihi batas 3x omzet bulanan.',
-                'errors' => ['nominal_pengajuan' => 'Maksimal pengajuan adalah Rp ' . number_format($maksimalPinjaman, 0, ',', '.')]
+                'message' => 'Nominal pengajuan melebihi batas 3x omzet.',
+                'errors' => ['nominal_pengajuan' => 'Maksimal: Rp ' . number_format($maksimalPinjaman, 0, ',', '.')]
             ], 422);
         }
 
-
         $P = $request->nominal_pengajuan;
-        $r = ($request->bunga_persen / 100) / 12; 
+        $r = ($request->bunga_persen / 100) / 12;
         $n = $request->tenor_bulan;
-        
-      
         $cicilanPerBulan = $P * ($r * pow(1 + $r, $n)) / (pow(1 + $r, $n) - 1);
 
         $pembiayaan = PembiayaanRequest::create([
@@ -90,10 +100,10 @@ class PembiayaanController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Pengajuan berhasil dibuat dan sedang direview.',
+            'message' => 'Pengajuan berhasil dibuat.',
             'data' => [
                 'pengajuan' => $pembiayaan,
-                'estimasi_cicilan_per_bulan' => round($cicilanPerBulan, 2)
+                'estimasi_cicilan' => round($cicilanPerBulan, 2)
             ]
         ], 201);
     }
