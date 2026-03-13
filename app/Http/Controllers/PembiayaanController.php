@@ -9,6 +9,47 @@ use Illuminate\Support\Str;
 
 class PembiayaanController extends Controller
 {
+    public function index(Request $request)
+    {
+        //  hanya role approver/admin yang bisa akse
+        if ($request->user()->role !== 'approver') {
+            return response()->json(['success' => false, 'message' => 'Akses ditolak.'], 403);
+        }
+
+        // Ambil data besserta relasi profil UMKM
+        $pengajuan = PembiayaanRequest::with(['umkmProfile.user'])
+                        ->orderBy('created_at', 'desc')
+                        ->paginate(10);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Data pengajuan berhasil diambil',
+            'data' => $pengajuan
+        ]);
+    }
+
+    //Mengubah status approval (setujui /Tolak)
+    public function updateStatus(Request $request, $id)
+    {
+        if ($request->user()->role !== 'approver') {
+            return response()->json(['success' => false, 'message' => 'Akses ditolak.'], 403);
+        }
+
+        $request->validate([
+            'status_approval' => 'required|in:approved_tier_1,approved_tier_2,rejected'
+        ]);
+
+        $pembiayaan = PembiayaanRequest::findOrFail($id);
+        $pembiayaan->status_approval = $request->status_approval;
+        $pembiayaan->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Status pengajuan berhasil diperbarui menjadi: ' . $request->status_approval,
+            'data' => $pembiayaan
+        ]);
+    }
+
     public function store(Request $request)
     {
         $request->validate([
