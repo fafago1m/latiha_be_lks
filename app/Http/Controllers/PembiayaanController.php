@@ -14,12 +14,11 @@ class PembiayaanController extends Controller
 {
     public function index(Request $request)
     {
-        //  hanya role approver/admin yang bisa akse
-        if ($request->user()->role !== 'approver') {
-            return response()->json(['success' => false, 'message' => 'Akses ditolak.'], 403);
+      
+        if (!Gate::allows('manage-approval')) {
+            return response()->json(['success' => false, 'message' => 'Akses ditolak. Anda bukan Admin/Approver.'], 403);
         }
 
-        // Ambil data besserta relasi profil UMKM
         $pengajuan = PembiayaanRequest::with(['umkmProfile.user'])
                         ->orderBy('created_at', 'desc')
                         ->paginate(10);
@@ -106,5 +105,27 @@ class PembiayaanController extends Controller
                 'estimasi_cicilan' => round($cicilanPerBulan, 2)
             ]
         ], 201);
+    }
+
+    public function riwayat(Request $request)
+    {
+        $umkm = $request->user()->umkmProfile;
+
+        if (!$umkm) {
+            return response()->json([
+                'success' => true,
+                'data' => []
+            ]);
+        }
+
+        $riwayat = PembiayaanRequest::where('umkm_profile_id', $umkm->id)
+                                    ->orderBy('created_at', 'desc')
+                                    ->get();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Riwayat pengajuan berhasil diambil',
+            'data' => $riwayat
+        ]);
     }
 }

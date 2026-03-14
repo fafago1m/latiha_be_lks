@@ -19,6 +19,9 @@ class UmkmProfile extends Model
         'omzet_bulanan'
     ];
 
-
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
     //
 }
