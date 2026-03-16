@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\PembiayaanController;
+use App\Http\Controllers\UserController;
 
 
 Route::get('/user', function (Request $request) {
@@ -20,6 +21,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/pembiayaan/riwayat', [PembiayaanController::class, 'riwayat']);
     Route::put('/admin/pembiayaan/{id}/status', [PembiayaanController::class, 'updateStatus']);
     Route::get('/admin/users', [\App\Http\Controllers\UserController::class, 'index']);
+    Route::post('/admin/users', [\App\Http\Controllers\UserController::class, 'store']);
     Route::put('/admin/users/{id}', [\App\Http\Controllers\UserController::class, 'update']);
     Route::delete('/admin/users/{id}', [\App\Http\Controllers\UserController::class, 'destroy']);
 });

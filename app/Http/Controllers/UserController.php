@@ -23,6 +23,33 @@ class UserController extends Controller
         ]);
     }
 
+    public function store(Request $request)
+    {
+        if (!Gate::allows('manage-approval')) {
+            return response()->json(['success' => false, 'message' => 'Akses ditolak.'], 403);
+        }
+
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email',
+            'role' => 'required|in:admin,approver,umkm',
+            'password' => 'required|min:6',
+        ]);
+
+        $user = User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => $request->password, 
+            'role' => $request->role,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Pengguna baru berhasil ditambahkan!',
+            'data' => $user
+        ], 201);
+    }
+
 
     public function update(Request $request, $id)
     {
@@ -36,13 +63,20 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email,' . $id,
             'role' => 'required|in:admin,approver,umkm',
+            'password' => 'nullable|min:6',
         ]);
 
-        $user->update([
+        $data = [
             'name' => $request->name,
             'email' => $request->email,
             'role' => $request->role,
-        ]);
+        ];
+
+        if ($request->filled('password')) {
+            $data['password'] = $request->password;
+        }
+
+        $user->update($data);
 
         return response()->json([
             'success' => true,
